@@ -1,6 +1,4 @@
 #Importar bibliotecas
-import os
-from queue import Empty
 import requests
 import zipfile
 
@@ -82,12 +80,13 @@ def descargar_datos():
             ruta = LineString(ruta_coordenadas)
             
             if canton.intersects(ruta):
-                interseccion_resultante = canton.intersection(ruta) # intersection proporciona una buena aproximación
+                # intersection proporciona una buena aproximación de la ruta recortada dentro del poligono
+                interseccion_resultante = canton.intersection(ruta)
                 lista_rutas_coordenadas.append(interseccion_resultante)
                 lista_rutas_categorias.append(capa_red_json["features"][j]["properties"]["categoria"])
 
     # Se convierte la lista en un objeto GeoSeries y luego un GeoDataFrame
-    # Se agregan al GeoFataFrame la columna de longitud y categoria
+    # Luego se agregan al GeoFataFrame la columna de longitud y categoria
 
     geo_lista = gpd.GeoSeries(lista_rutas_coordenadas)
     geo_data = gpd.GeoDataFrame(geo_lista, columns = ['geometry'])
@@ -97,7 +96,7 @@ def descargar_datos():
     # Se hace un join espacial del DataFrame cantones y geo_data
     # El join conserva todas las rutas "right join"
 
-    join_espacial = gpd.sjoin(cantones,geo_data, how="right",op="intersects")
+    join_espacial = gpd.sjoin(cantones,geo_data, how="right")
     longitud_agrupada = join_espacial.groupby('canton')['longitud'].sum()
 
     #Se calcula la densidad y se agrega como columna
@@ -147,23 +146,20 @@ def convertir_coordenadas_tuplas(coordenadas,tipo):
 #Se cargan todos los DataFrames
 cantones_sorted, data_longitud_sin_pavimento, data_longitud_pavimento_1, data_longitud_pavimento_2, data_longitud_camino_tierra, data_longitud_autopista , capa_red_json, join_espacial = descargar_datos()
 
+# Se crea una copia a sugerencia de Streamlit. De lo contrario el Cache no funciona.
 cantones_stream = cantones_sorted.copy()
-
 cantones_stream.drop(columns = ['geometry', 'provincia', 'longitud_total', 'densidad_total'], inplace=True)
 
-#cantones_top_15 = cantones_sorted.copy()
-
-
+# Inicia Streamlit aqui
 st.title("Proyecto del curso de laboratorio")
 st.markdown("# Luis Sanchez - A65285")
-# carreteras_seleccionadas = st.sidebar.multiselect("Por favor seleccione los tipos de carretera de los que desea obtener informacion",
-# ("Sin pavimento de dos vías", "De pavimento de una vía", "De pavimento de dos vías o más", "Caminos de tierra", "Autopistas"))
 
+#Sidebar
 carreteras_seleccionadas = st.sidebar.selectbox("Por favor seleccione los tipos de carretera de los que desea obtener informacion",
 ("Sin pavimento de dos vías", "De pavimento de una vía", "De pavimento de dos vías o más", "Caminos de tierra", "Autopistas"))
 
-# st.markdown(carreteras_seleccionadas)
 
+# Diccionarios para facilitar el trabajo de conversion de la opcion seleccionada
 diccionario_carreteras_keys = {"Sin pavimento de dos vías":"longitud_sin_pavimento",
     "De pavimento de una vía":"longitud_pavimento_1",
     "De pavimento de dos vías o más":"longitud_pavimento_2",
@@ -181,43 +177,6 @@ diccionario_carreteras_datos = {"Sin pavimento de dos vías":data_longitud_sin_p
     "De pavimento de dos vías o más":data_longitud_pavimento_2,
     "Caminos de tierra":data_longitud_camino_tierra,
     "Autopistas":data_longitud_autopista}
-
-# if len(carreteras_seleccionadas):
-
-#     #1. Tabla
-#     for categoria in carreteras_seleccionadas:
-#         cantones_stream = cantones_stream.merge(diccionario_carreteras_datos[categoria], on='canton', how='left')
-
-#     cantones_stream.fillna(0, inplace=True)
-#     st.markdown("## Tabla con información de cantones y rutas")
-#     st.table(data=cantones_stream)
-
-#     # 2. Grafico de barras Plotly
-#     cantones_top_15 = cantones_stream.nlargest(n=15, columns=['longitud_pavimento_1']) # TO DO: hacer dinamico
-#     st.markdown("## Gráfico Plotly con el top 15 del tipo de carretera seleccionado")
-
-#     fig_bar = px.bar(cantones_top_15,
-#         x="canton",
-#         y="longitud_pavimento_1",
-#         labels={
-#             "value": "Distancia (km)",
-#             "canton": "Cantones",
-#             "variable":"Tipo de carretera"
-#         },
-#         title="Distribución por tipo de carretera en los 15 cantones con más longitud total")
-#     st.plotly_chart(fig_bar)
-
-#     # 3. Grafico de pastel Plotly
-#     otros_cantones = {'canton':'Otros cantones', 'longitud_total':cantones_stream['longitud_total'].sum()-cantones_top_15['longitud_total'].sum()}
-#     cantones_top_16 = cantones_top_15.append(otros_cantones, ignore_index=True)
-#     fig_pie = px.pie(cantones_top_16, values='longitud_total', names='canton',
-#                 title='Proporción de los 15 cantones con mayor longitud de carreta y "otros cantones"')
-#     st.plotly_chart(fig_pie)
-
-# else:
-#     st.markdown("Seleccione tipos de carretera para iniciar...")
-
-
 
 #1. Tabla
 cantones_stream = cantones_stream.merge(diccionario_carreteras_datos[carreteras_seleccionadas], on='canton', how='left')
@@ -252,7 +211,7 @@ st.plotly_chart(fig_pie)
 # 4. Mapa folium
 m = folium.Map(location=[9.8, -84], tiles='CartoDB positron', zoom_start=8)
 
-
+# Hay que calcular la densidad para el tipo de carretera seleccionada
 cantones_stream.rename(columns={diccionario_carreteras_keys[carreteras_seleccionadas]:'longitud_total'}, inplace=True)
 cantones_stream['densidad_total'] = cantones_stream.apply(lambda row: row.longitud_total / row.area, axis=1)
 st.table(data=cantones_stream)
@@ -279,44 +238,3 @@ folium.GeoJson(data=red_vial_categoria,
 folium.LayerControl().add_to(m)
 
 folium_static(m)
-
-# # ## 3. Gráfico de pastel: Proporción de los 15 cantones con mayor longitud de carreta y "otros cantones"
-
-# # Se calcula otros cantones y se agrega al DataFrame
-
-# otros_cantones = {'canton':'Otros cantones', 'longitud_total':cantones_sorted['longitud_total'].sum()-cantones_top_15['longitud_total'].sum()}
-# cantones_top_16 = cantones_top_15.append(otros_cantones, ignore_index=True)
-# fig = px.pie(cantones_top_16, values='longitud_total', names='canton',
-#              title='Proporción de los 15 cantones con mayor longitud de carreta y "otros cantones"')
-# fig.show()
-
-
-# # ## 4. Mapa Folium con capas: densidad vial y red vial
-
-# # Creación del mapa base de folium
-# m = folium.Map(location=[9.8, -84], tiles='CartoDB positron', zoom_start=8)
-
-# # Creación de la capa de coropletas
-# folium.Choropleth(
-#     name="Densidad vial",
-#     geo_data=cantones_sorted,
-#     data=cantones_sorted,
-#     columns=["canton","densidad_total"],
-#     bins=7,
-#     key_on="feature.properties.canton",
-#     fill_color="Reds",
-#     fill_opacity=0.5, 
-#     line_opacity=1,
-#     legend_name="Densidad (Longitud/Area)",
-# ).add_to(m)
-
-
-# # Se añade la capa de red vial
-# folium.GeoJson(data=capa_red_json,
-#                name='Red vial'
-#               ).add_to(m)
-
-# folium.LayerControl().add_to(m)
-
-# m
-
