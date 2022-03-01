@@ -154,10 +154,11 @@ cantones_stream.drop(columns = ['geometry', 'provincia', 'longitud_total', 'dens
 st.title("Proyecto del curso de laboratorio")
 st.markdown("# Luis Sanchez - A65285")
 
-#Sidebar
+#1. Sidebar
 carreteras_seleccionadas = st.sidebar.selectbox("Por favor seleccione los tipos de carretera de los que desea obtener informacion",
 ("Sin pavimento de dos vías", "De pavimento de una vía", "De pavimento de dos vías o más", "Caminos de tierra", "Autopistas"))
 
+st.markdown("## 1. Categoria seleccionada: "+str(carreteras_seleccionadas))
 
 # Diccionarios para facilitar el trabajo de conversion de la opcion seleccionada
 diccionario_carreteras_keys = {"Sin pavimento de dos vías":"longitud_sin_pavimento",
@@ -178,15 +179,22 @@ diccionario_carreteras_datos = {"Sin pavimento de dos vías":data_longitud_sin_p
     "Caminos de tierra":data_longitud_camino_tierra,
     "Autopistas":data_longitud_autopista}
 
-#1. Tabla
+#Se arreglan valores nulos
 cantones_stream = cantones_stream.merge(diccionario_carreteras_datos[carreteras_seleccionadas], on='canton', how='left')
 cantones_stream.fillna(0, inplace=True)
-st.markdown("## Tabla con información de cantones y rutas")
-st.table(data=cantones_stream)
 
-# 2. Grafico de barras Plotly
-cantones_top_15 = cantones_stream.nlargest(n=15, columns=[diccionario_carreteras_keys[carreteras_seleccionadas]]) # TO DO: hacer dinamico
-st.markdown("## Gráfico de barras Plotly con el top 15 del tipo de carretera seleccionado")
+# 2. Tabla
+# Hay que calcular la densidad para el tipo de carretera seleccionada
+cantones_tabla = cantones_stream.rename(columns={diccionario_carreteras_keys[carreteras_seleccionadas]:'longitud_total'})
+cantones_tabla['densidad_total'] = cantones_tabla.apply(lambda row: row.longitud_total / row.area, axis=1)
+
+st.markdown("## 2. Tabla con información de cantones y rutas")
+
+st.table(data=cantones_tabla)
+
+# 3. Grafico de barras Plotly
+cantones_top_15 = cantones_stream.nlargest(n=15, columns=[diccionario_carreteras_keys[carreteras_seleccionadas]])
+st.markdown("## 3. Gráfico de barras Plotly con el top 15 del tipo de carretera seleccionado")
 
 fig_bar = px.bar(cantones_top_15,
     x="canton",
@@ -197,29 +205,34 @@ fig_bar = px.bar(cantones_top_15,
         "variable":"Tipo de carretera"
     },
     title="Distribución por tipo de carretera en los 15 cantones con más longitud total")
+
 st.plotly_chart(fig_bar)
 
-# 3. Grafico de pastel Plotly
-st.markdown("## Gráfico de pastel Plotly con el top 15 del tipo de carretera seleccionado y otros cantones")
+# 4. Grafico de pastel Plotly
+st.markdown("## 4. Gráfico de pastel Plotly con el top 15 del tipo de carretera seleccionada y otros cantones")
+
 otros_cantones = {'canton':'Otros cantones', 
                     diccionario_carreteras_keys[carreteras_seleccionadas]:cantones_stream[diccionario_carreteras_keys[carreteras_seleccionadas]].sum()-cantones_top_15[diccionario_carreteras_keys[carreteras_seleccionadas]].sum()}
 cantones_top_16 = cantones_top_15.append(otros_cantones, ignore_index=True)
 fig_pie = px.pie(cantones_top_16, values=diccionario_carreteras_keys[carreteras_seleccionadas], names='canton',
-            title='Proporción de los 15 cantones con mayor longitud de carreta y "otros cantones"')
+            title='Proporción de los 15 cantones con mayor longitud del tipo de carreta seleccionada y "otros cantones"')
+
 st.plotly_chart(fig_pie)
 
-# 4. Mapa folium
-m = folium.Map(location=[9.8, -84], tiles='CartoDB positron', zoom_start=8)
+# 5. Mapa folium
 
-# Hay que calcular la densidad para el tipo de carretera seleccionada
-cantones_stream.rename(columns={diccionario_carreteras_keys[carreteras_seleccionadas]:'longitud_total'}, inplace=True)
-cantones_stream['densidad_total'] = cantones_stream.apply(lambda row: row.longitud_total / row.area, axis=1)
-st.table(data=cantones_stream)
+# Originalmente pense en crear un Cache del mapa, pero no se recomienda copiar este objeto
+# referencia: https://github.com/python-visualization/folium/issues/1207
+
+# Ademas, la prueba resultó con tiempos de carga similares
+m = folium.Map(location=[9.8, -84], tiles='CartoDB positron', zoom_start=8, control_scale=True)
+
+st.markdown("## 5. Mapa folium con la información de la carretera seleccionada")
 
 folium.Choropleth(
     name="Densidad vial de "+str(diccionario_carreteras_keys[carreteras_seleccionadas]),
     geo_data=cantones_sorted,
-    data=cantones_stream,
+    data=cantones_tabla,
     columns=["canton","densidad_total"],
     bins=7,
     key_on="feature.properties.canton",
