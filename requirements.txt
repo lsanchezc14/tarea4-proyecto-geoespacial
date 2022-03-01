@@ -1,5 +1,6 @@
 plotly
 shapely
+geojson
 owslib
 pandas
 geopandas
