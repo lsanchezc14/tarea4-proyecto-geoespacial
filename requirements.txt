@@ -1,0 +1,7 @@
+plotly
+shapely
+owslib
+pandas
+geopandas
+folium
+streamlit-folium
