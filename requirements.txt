@@ -1,3 +1,4 @@
+pygeos
 plotly
 shapely
 geojson
