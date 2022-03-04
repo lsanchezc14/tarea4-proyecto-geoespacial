@@ -148,7 +148,7 @@ cantones_sorted, data_longitud_sin_pavimento, data_longitud_pavimento_1, data_lo
 
 # Se crea una copia a sugerencia de Streamlit. De lo contrario el Cache no funciona.
 cantones_stream = cantones_sorted.copy()
-cantones_stream.drop(columns = ['geometry', 'provincia', 'longitud_total', 'densidad_total'], inplace=True)
+cantones_stream.drop(columns = ['geometry', 'provincia', 'densidad_total'], inplace=True)
 
 # Inicia Streamlit aqui
 st.title("Proyecto del curso de laboratorio")
@@ -156,7 +156,7 @@ st.markdown("# Luis Sanchez - A65285")
 
 #1. Sidebar
 carreteras_seleccionadas = st.sidebar.selectbox("Por favor seleccione los tipos de carretera de los que desea obtener informacion",
-("Sin pavimento de dos vías", "De pavimento de una vía", "De pavimento de dos vías o más", "Caminos de tierra", "Autopistas"))
+("Sin pavimento de dos vías", "De pavimento de una vía", "De pavimento de dos vías o más", "Caminos de tierra", "Autopistas", "Todos los tipos de carretera"))
 
 st.markdown("## 1. Categoria seleccionada: "+str(carreteras_seleccionadas))
 
@@ -165,7 +165,10 @@ diccionario_carreteras_keys = {"Sin pavimento de dos vías":"longitud_sin_pavime
     "De pavimento de una vía":"longitud_pavimento_1",
     "De pavimento de dos vías o más":"longitud_pavimento_2",
     "Caminos de tierra":"longitud_camino_tierra",
-    "Autopistas":"longitud_autopista"}
+    "Autopistas":"longitud_autopista",
+    "Todos los tipos de carretera":"longitud_total"}
+
+todas_carreteras = "Todos los tipos de carretera"
 
 diccionario_carreteras_folium = {"Sin pavimento de dos vías":"CARRETERA SIN PAVIMENTO DOS VIAS",
     "De pavimento de una vía":"CARRETERA PAVIMENTO UNA VIA",
@@ -180,8 +183,13 @@ diccionario_carreteras_datos = {"Sin pavimento de dos vías":data_longitud_sin_p
     "Autopistas":data_longitud_autopista}
 
 #Se arreglan valores nulos
-cantones_stream = cantones_stream.merge(diccionario_carreteras_datos[carreteras_seleccionadas], on='canton', how='left')
-cantones_stream.fillna(0, inplace=True)
+if(carreteras_seleccionadas != todas_carreteras):
+    cantones_stream.drop(columns = ['longitud_total'], inplace=True)
+    cantones_stream = cantones_stream.merge(diccionario_carreteras_datos[carreteras_seleccionadas], on='canton', how='left')
+    cantones_stream.fillna(0, inplace=True)
+    red_vial_categoria = join_espacial.loc[join_espacial['categoria'] == diccionario_carreteras_folium[carreteras_seleccionadas]]
+else:
+    red_vial_categoria = capa_red_json
 
 # 2. Tabla
 # Hay que calcular la densidad para el tipo de carretera seleccionada
@@ -229,6 +237,8 @@ m = folium.Map(location=[9.8, -84], tiles='CartoDB positron', zoom_start=8, cont
 
 st.markdown("## 5. Mapa folium con la información de la carretera seleccionada")
 
+
+
 folium.Choropleth(
     name="Densidad vial de "+str(diccionario_carreteras_keys[carreteras_seleccionadas]),
     geo_data=cantones_sorted,
@@ -241,8 +251,6 @@ folium.Choropleth(
     line_opacity=1,
     legend_name="Densidad (Longitud/Area)",
 ).add_to(m)
-
-red_vial_categoria = join_espacial.loc[join_espacial['categoria'] == diccionario_carreteras_folium[carreteras_seleccionadas]]
 
 folium.GeoJson(data=red_vial_categoria,
                name='Red vial por categoría'
