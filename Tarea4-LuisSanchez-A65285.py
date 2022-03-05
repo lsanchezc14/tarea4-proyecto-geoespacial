@@ -36,6 +36,10 @@ def descargar_datos():
     #Se convierte también en Dataframe
     response_cantones = requests.Request('GET',url_cantones, params=params_cantones).prepare().url
     cantones = gpd.read_file(response_cantones)
+
+    # ALternativa leer desde Github, pero el Cache funciona muy bien
+    # cantones = gpd.read_file("https://github.com/lsanchezc14/tarea4-proyecto-geoespacial/raw/main/cantones.geojson")
+
     columns_drop_cantones = ['id','gmlid', 'cod_catalo', 'cod_canton', 'ori_toponi', 'cod_provin', 'version']
     cantones = cantones.drop(columns=columns_drop_cantones)
 
@@ -52,6 +56,10 @@ def descargar_datos():
     #Se convierte también en Dataframe
     response_red = requests.Request('GET',url_red_vial, params=params_red).prepare().url
     red_vial = gpd.read_file(response_red)
+
+    # Alternativa leer desde Github, pero el Cache funciona muy bien
+    # red_vial = gpd.read_file("https://github.com/lsanchezc14/tarea4-proyecto-geoespacial/raw/main/red_vial.geojson")
+    # capa_red_json = red_vial.to_json()
 
     columns_drop_red = ['origen', 'codigo', 'num_ruta', 'jerarquia', 'nombre',
         'num_carril', 'mat_supe', 'est_supe', 'condi_uso', 'administra',
